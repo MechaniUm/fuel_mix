@@ -44,6 +44,11 @@ void StepperStart() {
     stepper.moveTo(999999);
 }
 
+void StepperSetSpeed(double power) {
+    // TODO: не менять, если индекс остался старым
+    stepper.setMaxSpeed(stepper_speed[(int)power / 9]);
+}
+
 ISR(TIMER5_A) {
     StepperRun();
 }

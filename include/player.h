@@ -13,10 +13,15 @@ void PlayerSetup() {
     delay(20);
 }
 
-void PlayEngineSound(int power) {
+void PlayerSetSound(double power) {
+    // TODO: не менять, если индекс остался старым
     if (mp3.isPlaying())
         mp3.stop();
-    mp3.loop(1); // TODO: calculate file number from power 
+    mp3.loop((int)power / 9);
+}
+
+void PlayerSetVolume(int vol) {
+    mp3.volume(vol);
 }
 
 #endif
