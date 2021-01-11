@@ -5,6 +5,7 @@
 #include <DFPlayerMini_Fast.h>
 
 DFPlayerMini_Fast mp3;
+int volume = 15;
 
 void PlayerSetup() {
     Serial2.begin(9600);
@@ -13,11 +14,27 @@ void PlayerSetup() {
     delay(20);
 }
 
-void PlayerSetSound(double power) {
-    // TODO: не менять, если индекс остался старым
+void PlayerStop() {
     if (mp3.isPlaying())
         mp3.stop();
-    mp3.loop((int)power / 9);
+}
+
+int last_sound_idx = 0;
+void PlayerPlay(int i) {
+    if (i != last_sound_idx) {
+        last_sound_idx = i;
+        PlayerStop();
+        mp3.loop(i);
+    }
+}
+
+void PlayerSetSound(double power) {
+    int idx = map(power, 0, 100, 2, 12);
+    PlayerPlay(idx);
+}
+
+void PlayerTurningOnSound() {
+    PlayerPlay(1);
 }
 
 void PlayerSetVolume(int vol) {

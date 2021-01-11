@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <rm4.h>
 
-const int radio_signal = 20;
+const int radio_signal = A8;
 const int radio_power = 21;
 
 static const int kData0Pin = A0;
@@ -24,26 +24,31 @@ void RadioInterrupt() {
     switch (button_code)
     {
     case 8:
-        RadioButtonEvent1();
         break;
     case 4:
-        RadioButtonEvent2();
         break;
     case 2:
+        RadioButtonEvent2();
         break;
     case 1:
+        RadioButtonEvent1();
         break;
     default:
         break;
     }
 }
-
+FireTimer radio_timer;
+void ReadRadio() {
+    if (radio_timer.fire()) {
+        if (digitalRead(radio_signal) == HIGH) {
+            RadioInterrupt();
+        }
+    }
+}
 
 void RadioSetup() {
-    pinMode(radio_signal, INPUT);
-    pinMode(radio_power, OUTPUT);
-    digitalWrite(radio_power, HIGH);
-    attachInterrupt(digitalPinToInterrupt(radio_signal), RadioInterrupt, RISING);    
+    pinMode(radio_signal, INPUT); 
+    radio_timer.begin(500);
 }
 
 #endif

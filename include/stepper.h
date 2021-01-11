@@ -3,54 +3,48 @@
 
 #include <Arduino.h>
 #include <AccelStepper.h>
-#include <GyverTimers.h>
 
-const int stepper_step = 53;
-const int stepper_dir = 51;
-const int stepper_en = 49;
-
-const int stepper_tick = 20;
-
-const int stepper_speed[11] = {
-    800, 1000, 1250, 1500, 1750,
-    2000, 2250, 2500, 2750, 3000,
-    3500
-};
-const int stepper_acceleration = 300;
-
-AccelStepper stepper(AccelStepper::DRIVER, stepper_step, stepper_dir);
-
+const int stepper_pin = 44;
+const int stepper_out_pin = 49;
 void StepperSetup() {
-    pinMode(stepper_en, OUTPUT);
-    pinMode(stepper_en, HIGH);
+    pinMode(stepper_pin, OUTPUT);
+    pinMode(stepper_out_pin, INPUT);
+    analogWrite(stepper_pin, 0);
+}
 
-    stepper.setMaxSpeed(stepper_speed[0]);
-    stepper.setAcceleration(stepper_acceleration);
+int last_speed_idx = 0;
+void StepperSetSpeed(double power) {
+    int idx = map(power, 0, 100, 0, 11);
+    if (last_speed_idx != idx) {
+        Wire.beginTransmission(I2C_SLAVE2_ADDRESS);
+        Wire.write(idx + 2);
+        Wire.endTransmission();
+        last_speed_idx = idx;
+    }
+}
 
-    Timer5.setPeriod(stepper_tick);
-    Timer5.enableISR();
+void StepperResume() {
+    Wire.beginTransmission(I2C_SLAVE2_ADDRESS);
+    Wire.write(2);
+    Wire.endTransmission();
 }
 
 void StepperStop() {
-    stepper.stop();
-}
-
-void StepperRun() {
-    stepper.run();
+    Wire.beginTransmission(I2C_SLAVE2_ADDRESS);
+    Wire.write(0);
+    Wire.endTransmission();
 }
 
 void StepperStart() {
-    stepper.setCurrentPosition(0);
-    stepper.moveTo(999999);
+    Wire.beginTransmission(I2C_SLAVE2_ADDRESS);
+    Wire.write(1);
+    Wire.endTransmission();
 }
 
-void StepperSetSpeed(double power) {
-    // TODO: не менять, если индекс остался старым
-    stepper.setMaxSpeed(stepper_speed[(int)power / 9]);
-}
-
-ISR(TIMER5_A) {
-    StepperRun();
+bool StepperIsRunning() {
+    Wire.requestFrom(I2C_SLAVE2_ADDRESS, 1);   
+    int res = Wire.read();
+    return res;
 }
 
 #endif
