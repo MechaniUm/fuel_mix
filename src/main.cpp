@@ -3,282 +3,116 @@
 #include <Wire.h>
 #include <advancedSerial.h>
 
-# define I2C_SLAVE1_ADDRESS 11
-# define I2C_SLAVE2_ADDRESS 12
+#define I2C_SLAVE1_ADDRESS 11
+#define I2C_SLAVE2_ADDRESS 12
+
+
+const unsigned long setup_delay = 10000;
+unsigned long setup_time;
+const unsigned long ready_delay = 6000, stop_delay = 3500;
+unsigned long ready_time = 0, stop_time = 0;
+unsigned long afk_time;
+const unsigned long afk_delay = 30000;
 
 #define PAYLOAD_SIZE 2
 
-#include "radio.h"
+#include "stage.h"
 #include "player.h"
 #include "encoder.h"
 #include "stepper.h"
 #include "light.h"
 #include "servo.h"
+#include "fuel.h"
+#include "radio.h"
 
-enum Stage {
-    SETUP,
-    WAIT,
-    READY,
-    WORK,
-    DANGER,
-    SLOWING,
-    SLOWING_TO_WAIT,
-    SLOWING_TO_READY
-};
-
-Stage stage;
-
-const unsigned long setup_delay = 10000;
-unsigned long setup_time;
-const unsigned long ready_delay = 6000;
-unsigned long ready_time = 0;
-unsigned long afk_time;
-const unsigned long afk_delay = 30000;
-
-
-double Ratio(double fuel, double air, double n2o) {
-    if (fuel == 100.0) return 0;
-    return fuel / (air * 0.21 + n2o * 0.356);
+void HardwareReset() {
+    ServoReset();
+    StepperStop();
+    LightWaitStage();
+    EncodersReset(0);
 }
 
-double Fuel(double x) {
-    if (x > 0.12 && x <= 0.23) {
-        return 90.91 * x - 0.91;
-    } else if (x > 0.23 && x <= 0.3) {
-        return 428.6 * x - 78.49;
-    } else if (x > 0.3 && x <= 0.4) {
-        return 100.0 * x + 20;
-    } else if (x > 0.4 && x <= 0.95) {
-        return -90.91 * x + 96.3645;
-    }
-    return 0;
-}
-
-double NitroCoef(double nitro) {
-    return 1.0 + nitro / 100.0;
-}
-
-double BoostCoef(double boost) {
-    return boost * 0.5;
-}
-
-double Power(double fuel, double air, double n2o, double boost) {
-    double fuel_oxygen_ratio = Ratio(fuel, air, n2o);
-    double res = Fuel(fuel_oxygen_ratio) * NitroCoef(n2o);
-    if (res)
-        res += BoostCoef(boost);
-    return res;
-}
-
-double fuel, air, n2o, boost, power;
-
-void ChangeFuel(double x) {
-    fuel += x;
-    if (air > 0) {
-        air -= x;
-
-    } else {
-        n2o -= x;
-    }
-    if (fuel >= 100.0) {
-        n2o = 0.0;
-        air = 0.0;
-        fuel = 100.0;
-    }
-}
-
-void ChangeAir(double x) {
-    air += x;
-    if (n2o == 0) {
-        fuel -= x;
-    } else if (fuel == 0) {
-        n2o -= x;
-    } else {
-        x = x / 2.0;
-        fuel -= x;
-        n2o -= x;
-    }
-    if (air >= 100.0) {
-        n2o = 0.0;
-        fuel = 0.0;
-        air = 100.0;
-    }
-}
-
-void ChangeN2O(double x) {
-    if (x > 0 && air > 0) {
-        n2o += x;
-        air -= x;
-    } else if (x < 0 && air < 100) {
-        n2o += x;
-        air -= x;
-    }
-    if (n2o >= 100.0) {
-        n2o = 100.0;
-        fuel = 0.0;
-        air = 0.0;
-    }
-}
-
-void ChangeBoost(double x) {
-    boost += x;
-    if (boost > 100)
-        boost = 100;
-    if (boost < 0)
-        boost = 0;
-}
-
-void RadioButtonEvent1() {
-    if (stage == READY || stage == WORK || stage == DANGER || stage == SLOWING) {
-        stage = SLOWING_TO_WAIT;
-        ServoReset();
-        PlayerStop();
-        aSerial.l(Level::vvv).pln(F("STAGE: WORKING -> SLOWING_TO_WAIT"));
-        StepperStop();
-        DisplayNumber(0, 0);
-        DisplayNumber(1, 0);
-        DisplayNumber(2, 0);
-        DisplayNumber(3, 0);
-        LightWaitStage();
-    }
-}
-
-void RadioButtonEvent2() {
-    if (stage == WAIT) {
-        stage = READY;
-        LightReadyStage();
-        fuel = 0.0;
-        air = 100.0;
-        n2o = 0.0;
-        boost = 0.0;
-        power = 0.0;
-        DisplayNumber(0, fuel);
-        DisplayNumber(1, air);
-        DisplayNumber(2, n2o);
-        DisplayNumber(3, boost);
-        afk_time = millis();
-        aSerial.l(Level::vvv).pln(F("STAGE: WAIT -> READY"));
-        ready_time = 0;
-    }
-}
-
-
-int prev_fuel = 0;
-void EncoderReadFuel() {
-    int f = encoders[0].read() / encoder_step_width;
-    if (prev_fuel < f) {
-        if (fuel > 0) {
-            ChangeFuel(-1);
-            ChangeAnimationSpeed(0, 55 - map(fuel, 0, 100, 5, 40));
-            ChangeAnimationSpeed(1, 55 - map(air, 0, 100, 5, 40));
-            ChangeAnimationSpeed(2, 55 - map(n2o, 0, 100, 5, 40));
-        }
-    } else if (prev_fuel > f) {
-        if (fuel < 100) {
-            ChangeFuel(1);
-            ChangeAnimationSpeed(0, 55 - map(fuel, 0, 100, 5, 40));
-            ChangeAnimationSpeed(1, 55 - map(air, 0, 100, 5, 40));
-            ChangeAnimationSpeed(2, 55 - map(n2o, 0, 100, 5, 40));
-        }
-    }
-    prev_fuel = f;
-}
-
-int prev_air = 0;
-void EncoderReadAir() {
-    int f = encoders[1].read() / encoder_step_width;
-    if (prev_air < f) {
-        if (air > 0) {
-            ChangeAir(-1);
-            ChangeAnimationSpeed(0, 55 - map(fuel, 0, 100, 5, 40));
-            ChangeAnimationSpeed(1, 55 - map(air, 0, 100, 5, 40));
-            ChangeAnimationSpeed(2, 55 - map(n2o, 0, 100, 5, 40));
-        }
-    } else if (prev_air > f) {
-        if (air < 100) {
-            ChangeAir(1);
-            ChangeAnimationSpeed(0, 55 - map(fuel, 0, 100, 5, 40));
-            ChangeAnimationSpeed(1, 55 - map(air, 0, 100, 5, 40));
-            ChangeAnimationSpeed(2, 55 - map(n2o, 0, 100, 5, 40));
-        }
-    }
-    prev_air = f;
-}
-
-
-int prev_N2O = 0;
-void EncoderReadN2O() {
-    int f = encoders[2].read() / encoder_step_width;
-    if (prev_N2O < f) {
-        if (n2o > 0) {
-            ChangeN2O(-1);
-            ChangeAnimationSpeed(0, 55 - map(fuel, 0, 100, 5, 40));
-            ChangeAnimationSpeed(1, 55 - map(air, 0, 100, 5, 40));
-            ChangeAnimationSpeed(2, 55 - map(n2o, 0, 100, 5, 40));
-        }
-    } else if (prev_N2O > f) {
-        if (n2o < 100) {
-            ChangeN2O(1);
-            ChangeAnimationSpeed(0, 55 - map(fuel, 0, 100, 5, 40));
-            ChangeAnimationSpeed(1, 55 - map(air, 0, 100, 5, 40));
-            ChangeAnimationSpeed(2, 55 - map(n2o, 0, 100, 5, 40));
-        }
-    }
-    prev_N2O = f;
-}
-
-int prev_boost = 0;
-void EncoderReadBoost() {
-    int f = encoders[3].read() / encoder_step_width;
-    if (prev_boost < f) {
-        if (boost > 0) {
-            ChangeBoost(-1);
-            ChangeAnimationSpeed(3, 55 - map(boost, 0, 100, 5, 40));
-        }
-
-    } else if (prev_boost > f) {
-        if (boost < 100) {
-            ChangeBoost(1);
-            ChangeAnimationSpeed(3, 55 - map(boost, 0, 100, 5, 40));
-        }
-    }
-    prev_boost = f;
-}
-
-double prev_power = 0;
-void UpdatePower() {
-    EncoderReadFuel();
-    EncoderReadAir();
-    EncoderReadN2O();
-    EncoderReadBoost();
-
+void FuelReset() {
+    fuel = 0.0;
+    air = 100.0;
+    n2o = 0.0;
+    boost = 0.0;
+    power = 0.0;
     DisplayNumber(0, fuel);
     DisplayNumber(1, air);
     DisplayNumber(2, n2o);
     DisplayNumber(3, boost);
-
-    if (!fuel) pipe_enable[0] = false; else pipe_enable[0] = true;
-    if (!air) pipe_enable[1] = false; else pipe_enable[1] = true;
-    if (!n2o) pipe_enable[2] = false; else pipe_enable[2] = true;
-    if (!boost) pipe_enable[3] = false; else pipe_enable[3] = true;
-    prev_power = power;
-    power = Power(fuel, air, n2o, boost);
-    if (prev_power != power) {
-        afk_time = millis();
-    }
 }
 
-void setup() {
-    Serial.begin(9600);
-    Wire.begin();
-    delay(1000);
-    aSerial.setPrinter(Serial);
-    aSerial.setFilter(Level::vvv);
-    
+void SlowingToWait() {
+    HardwareReset();
+    stage = SLOWING_TO_WAIT;
+    aSerial.l(Level::vvv).pln(F("STAGE: SLOWING_TO_WAIT"));
+}
 
+void SlowingToReady() {
+    HardwareReset();
+    stage = SLOWING_TO_READY;
+    aSerial.l(Level::vvv).pln(F("STAGE: SLOWING_TO_READY"));
+}
+
+void Wait() {
+    HardwareReset();
+    stage = WAIT;
+    aSerial.l(Level::vvv).pln(F("STAGE: WAIT"));
+}
+
+void Danger() {
+    HardwareReset();
+    LightDangerStage();
+    PlayerAlertSound();
+    stage = DANGER;
+    aSerial.l(Level::vvv).pln(F("STAGE: DANGER"));
+}
+
+void Work() {
+    stage = WORK;
+    aSerial.l(Level::vvv).pln(F("STAGE: WORK"));
+}
+
+void Slowing() {
+    StepperStop();
+    stage = SLOWING;
+    aSerial.l(Level::vvv).pln(F("STAGE: SLOWING"));
+}
+
+void Stop() {
+    HardwareReset();
+    stop_time = millis();
+    digitalWrite(headlight_pin, HIGH);
+    PlayerTurningOffSound();
+    stage = STOP;
+    aSerial.l(Level::vvv).pln(F("STAGE: STOP"));
+}
+
+void Ready() {
+    PlayerStop();
+    LightReadyStage();
+    FuelReset();
+    afk_time = millis();
+    ready_time = 0;
+    stop_time = 0;
+    stage = READY;
+    aSerial.l(Level::vvv).pln(F("STAGE: READY"));
+}
+
+void WorkUpdate() {
+
+    LightWorkAnimation();
+    UpdatePower();
+    StepperSetSpeed(power);
+    PlayerSetSound(power);
+    ServoSet(power);
+}
+
+void Setup() {
     stage = SETUP;
     aSerial.l(Level::vv).pln(F("STAGE: SETUP"));
-    
     
     RadioSetup();
     aSerial.l(Level::vv).pln(F("Radio setup successfull"));
@@ -300,21 +134,40 @@ void setup() {
     aSerial.l(Level::vv).pln(F("Setup successfull"));
 }
 
+void RadioButtonEvent1() {
+    if (stage == READY || stage == WORK || stage == DANGER || stage == SLOWING) {
+        SlowingToWait();
+    }
+}
+
+void RadioButtonEvent2() {
+    if (stage == WAIT) {
+        Ready();
+    }
+}
+
+void setup() {
+    Wire.begin();
+    delay(1000);
+
+    Serial.begin(9600);
+    aSerial.setPrinter(Serial);
+    aSerial.setFilter(Level::vvv);
+    
+    Setup();
+    
+}
+
 void loop() {
     ReadRadio();
     switch (stage)
     {
     case SETUP:
         // the volume can be changed by rotating the first encoder
-        // for $setup_delay milliseconds after setup
-        if (millis() - setup_time > setup_delay) {
-            stage = WAIT;
+        // for setup_delay milliseconds after setup
+        if (labs(millis() - setup_time) > setup_delay) {
+            Wait();
             PlayerSetVolume(volume);
-            LightWaitStage();
-            EncodersReset(0);
-            ServoReset();
-            PlayerStop();
-            aSerial.l(Level::vvv).pln(F("STAGE: SETUP -> WAIT"));
         } else {
             EncoderReadVolume();
             DisplayNumber(0, volume);
@@ -325,134 +178,62 @@ void loop() {
         break;
     
     case READY:
-        if (millis() - afk_time > afk_delay) {
-            RadioButtonEvent1();
-        }
         UpdatePower();
         LightWorkAnimation();
-        if (ready_time != 0 && (millis() - ready_time > ready_delay)) {
-            stage = WORK;
-            aSerial.l(Level::vvv).pln(F("STAGE: READY -> WORK"));
+        if (ready_time != 0 && (labs(millis() - ready_time) > ready_delay)) {
             StepperStart();
+            Work();
+        } else if (millis() - afk_time > afk_delay) {
+            Wait();
         } else {
             if (power > 0.0 && !ready_time) {
                 ready_time = millis();
                 PlayerTurningOnSound();
             }
         }
+        
         break;
     
     case WORK:
-        if (millis() - afk_time > afk_delay) {
-            stage = SLOWING_TO_READY;
-            aSerial.l(Level::vvv).pln(F("STAGE: WORK -> SLOWING_TO_READY"));
-            ServoReset();
-            PlayerStop();
-            StepperStop();
-            fuel = 0.0;
-            air = 100.0;
-            n2o = 0.0;
-            boost = 0.0;
-            power = 0.0;
-            DisplayNumber(0, 0);
-            DisplayNumber(1, 0);
-            DisplayNumber(2, 0);
-            DisplayNumber(3, 0);
-        }
-        LightWorkAnimation();
-        UpdatePower();
+        WorkUpdate();
         if (power > 100.0) {
-            ServoReset();
-            PlayerStop();
-            aSerial.l(Level::vvv).pln(F("STAGE: WORK -> DANGER"));
-            stage = DANGER;
-            StepperStop();
-            LightDangerStage();
-            PlayerAlertSound();
+            Danger();
         } else if (power <= 0.0) {
-            aSerial.l(Level::vvv).pln(F("STAGE: WORK -> SLOWING"));
-            StepperStop();
-            stage = SLOWING;
-        } else {
-            StepperSetSpeed(power);
-            PlayerSetSound(power);
-            ServoSet(power);
+            Slowing();
+        } else if (labs(millis() - afk_time) > afk_delay) {
+            SlowingToReady();
         }
         break;
 
     case DANGER:
         LightDangerAnimation();
         if (!StepperIsRunning()) {
-            stage = READY;
-            LightReadyStage();
-            fuel = 0.0;
-            air = 100.0;
-            n2o = 0.0;
-            boost = 0.0;
-            power = 0.0;
-            DisplayNumber(0, fuel);
-            DisplayNumber(1, air);
-            DisplayNumber(2, n2o);
-            DisplayNumber(3, boost);
-            EncodersReset(0);
-            ready_time = 0;
-            aSerial.l(Level::vvv).pln(F("STAGE: DANGER -> READY"));
-            PlayerStop();
+            Ready();
         }
         break;
 
     case SLOWING:
-        LightWorkAnimation();
-        UpdatePower();
-        StepperSetSpeed(power);
-        PlayerSetSound(power);
-        ServoSet(power);
-        
+        WorkUpdate();
         if (!StepperIsRunning()) {
-            stage = READY;
-            LightReadyStage();
-            PlayerTurningOffSound();
-            delay(3000);
-            PlayerStop();
-            ready_time = 0;
-            aSerial.l(Level::vvv).pln(F("STAGE: SLOWING -> READY"));
+            Stop();
         } else if (power > 0.0) {
-            stage = WORK;
-            StepperResume();
-            aSerial.l(Level::vvv).pln(F("STAGE: SLOWING -> WORK"));
+            Work();
+            // StepperResume();
         }
         break;
     case SLOWING_TO_WAIT:
         if (!StepperIsRunning()) {
-            stage = WAIT;
-            LightWaitStage();
-            EncodersReset(0);
-            ServoReset();
-            PlayerStop();
-            aSerial.l(Level::vvv).pln(F("STAGE: SLOWING_TO_WAIT -> WAIT"));
+            Wait();
         }
         break;
     case SLOWING_TO_READY:
-
-        LightWorkAnimation();
         if (!StepperIsRunning()) {
-            stage = READY;
-            LightReadyStage();
-            fuel = 0.0;
-            air = 100.0;
-            n2o = 0.0;
-            boost = 0.0;
-            power = 0.0;
-            DisplayNumber(0, fuel);
-            DisplayNumber(1, air);
-            DisplayNumber(2, n2o);
-            DisplayNumber(3, boost);
-            EncodersReset(0);
-            ready_time = 0;
-            ServoReset();
-            PlayerStop();
-            afk_time = millis();
-            aSerial.l(Level::vvv).pln(F("STAGE: SLOWING_TO_READY -> READY"));
+            Ready();
+        }
+        break;
+    case STOP:
+        if (stop_time != 0 && (labs(millis() - stop_time) > stop_delay)) {
+            Ready();
         }
         break;
     default:

@@ -15,9 +15,9 @@ void PlayerSetup() {
 }
 
 void PlayerStop() {
-    // if (mp3.isPlaying())
-        mp3.stop();
-    // delay(20);
+    mp3.stop();
+    aSerial.pln("stop");
+    
 }
 
 int last_sound_idx = 0;
@@ -25,7 +25,6 @@ void PlayerPlay(int i) {
     if (i != last_sound_idx) {
         aSerial.p("play ").pln(i);
         last_sound_idx = i;
-        // PlayerStop();
         mp3.play(i);
     }
 }
@@ -42,7 +41,6 @@ void PlayerTurningOnSound() {
 void PlayerTurningOffSound() {
     PlayerPlay(13);
 }
-
 
 void PlayerAlertSound() {
     PlayerPlay(14);

@@ -129,15 +129,14 @@ void DisplayNumber(int n, int number) {
     led_7segment[n].show();
 }
 
+// disable all lights
 void LightWaitStage() {
     for (int i = 0; i < speedometer_led_length; i++) {
-        // speedometer_led.setPixelColor(i, speedometer_led.Color(95, 140, 0));
         speedometer_led.setPixelColor(i, speedometer_led.Color(0, 0, 0));
     }
 
     for (int i = 0; i < headlight_led_length; i++) {
         headlight_led.setPixelColor(i, headlight_led.Color(0, 0, 0));
-        // headlight_led.setPixelColor(i, headlight_led.Color(122, 122, 122));
     }
     for (int i = 0; i < 4; i++) {
         pipes_led[i].clear();
@@ -155,23 +154,14 @@ void LightWaitStage() {
 void LightReadyStage() {
     for (int i = 0; i < speedometer_led_length; i++) {
         speedometer_led.setPixelColor(i, speedometer_led.Color(95, 140, 0));
-        // speedometer_led.setPixelColor(i, speedometer_led.Color(0, 0, 0));
     }
 
     for (int i = 0; i < headlight_led_length; i++) {
-        // headlight_led.setPixelColor(i, headlight_led.Color(0, 0, 0));
         headlight_led.setPixelColor(i, headlight_led.Color(122, 122, 122));
     }
     speedometer_led.show();
     headlight_led.show();
     digitalWrite(headlight_pin, HIGH);
-    for (int i = 0; i < speedometer_led_length; i++) {
-        speedometer_led.setPixelColor(i, speedometer_led.Color(95, 140, 0));
-    }
-
-    for (int i = 0; i < headlight_led_length; i++) {
-        headlight_led.setPixelColor(i, headlight_led.Color(122, 16, 0));
-    }
 }
 
 
@@ -236,7 +226,7 @@ void LightDangerStage() {
     }
     speedometer_led.show();
     headlight_led.show();
-    digitalWrite(headlight_pin, LOW);
+    digitalWrite(headlight_pin, HIGH);
 }
 
 void Led7SegmentOff() {
