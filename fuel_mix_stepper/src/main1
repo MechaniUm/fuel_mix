@@ -1,0 +1,32 @@
+#include <Arduino.h>
+#include <AccelStepper.h>
+
+// Define a stepper and the pins it will use
+AccelStepper stepper(1, 9, 5); // Defaults to AccelStepper::FULL4WIRE (4 pins) on 2, 3, 4, 5
+unsigned long modeTime = 0;
+
+void setup()
+{  
+  // Change these to suit your stepper if you want
+  stepper.setMaxSpeed(2500);
+  stepper.setAcceleration(300);
+  //stepper.moveTo(50000);
+  digitalWrite(6,HIGH);
+  
+}
+
+void loop()
+{
+    stepper.setSpeed(2500);
+    stepper.setAcceleration(300);
+    stepper.move(9999999);
+    while(millis()-modeTime<=15000){
+    stepper.run();
+    }
+    stepper.setAcceleration(300);
+    stepper.move(10000);
+    while(stepper.distanceToGo()>0){
+    stepper.run();
+    }
+    modeTime=millis();
+}

@@ -30,10 +30,11 @@ Stage stage;
 
 const unsigned long setup_delay = 10000;
 unsigned long setup_time;
-const unsigned long ready_delay = 3000;
+const unsigned long ready_delay = 6000;
 unsigned long ready_time = 0;
 unsigned long afk_time;
 const unsigned long afk_delay = 30000;
+
 
 double Ratio(double fuel, double air, double n2o) {
     if (fuel == 100.0) return 0;
@@ -79,13 +80,6 @@ void ChangeFuel(double x) {
     } else {
         n2o -= x;
     }
-    // if (n2o == 0) {
-    //     air -= x;
-    // } else {
-    //     x = x / 2.0;
-    //     air -= x;
-    //     n2o -= x;
-    // }
     if (fuel >= 100.0) {
         n2o = 0.0;
         air = 0.0;
@@ -124,17 +118,6 @@ void ChangeN2O(double x) {
         fuel = 0.0;
         air = 0.0;
     }
-    // x = x / 2.0;
-    // fuel -= x;
-    // air -= x;
-    // if (n2o >= 100.0) {
-    //     fuel = 0.0;
-    //     air = 0.0;
-    //     n2o = 100.0;
-    // } else if (n2o <= 0.0) {
-    //     fuel = (int) fuel;
-    //     air = 100 - fuel;
-    // }
 }
 
 void ChangeBoost(double x) {
@@ -173,6 +156,7 @@ void RadioButtonEvent2() {
         DisplayNumber(1, air);
         DisplayNumber(2, n2o);
         DisplayNumber(3, boost);
+        afk_time = millis();
         aSerial.l(Level::vvv).pln(F("STAGE: WAIT -> READY"));
         ready_time = 0;
     }
@@ -341,16 +325,19 @@ void loop() {
         break;
     
     case READY:
+        if (millis() - afk_time > afk_delay) {
+            RadioButtonEvent1();
+        }
         UpdatePower();
         LightWorkAnimation();
         if (ready_time != 0 && (millis() - ready_time > ready_delay)) {
             stage = WORK;
             aSerial.l(Level::vvv).pln(F("STAGE: READY -> WORK"));
             StepperStart();
-            PlayerTurningOnSound();
         } else {
             if (power > 0.0 && !ready_time) {
                 ready_time = millis();
+                PlayerTurningOnSound();
             }
         }
         break;
@@ -381,13 +368,14 @@ void loop() {
             stage = DANGER;
             StepperStop();
             LightDangerStage();
+            PlayerAlertSound();
         } else if (power <= 0.0) {
             aSerial.l(Level::vvv).pln(F("STAGE: WORK -> SLOWING"));
             StepperStop();
             stage = SLOWING;
-        }else {
+        } else {
             StepperSetSpeed(power);
-            // PlayerSetSound(power);
+            PlayerSetSound(power);
             ServoSet(power);
         }
         break;
@@ -409,6 +397,7 @@ void loop() {
             EncodersReset(0);
             ready_time = 0;
             aSerial.l(Level::vvv).pln(F("STAGE: DANGER -> READY"));
+            PlayerStop();
         }
         break;
 
@@ -416,12 +405,15 @@ void loop() {
         LightWorkAnimation();
         UpdatePower();
         StepperSetSpeed(power);
-        // PlayerSetSound(power);
+        PlayerSetSound(power);
         ServoSet(power);
         
         if (!StepperIsRunning()) {
             stage = READY;
             LightReadyStage();
+            PlayerTurningOffSound();
+            delay(3000);
+            PlayerStop();
             ready_time = 0;
             aSerial.l(Level::vvv).pln(F("STAGE: SLOWING -> READY"));
         } else if (power > 0.0) {
@@ -459,6 +451,7 @@ void loop() {
             ready_time = 0;
             ServoReset();
             PlayerStop();
+            afk_time = millis();
             aSerial.l(Level::vvv).pln(F("STAGE: SLOWING_TO_READY -> READY"));
         }
         break;
