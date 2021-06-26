@@ -20,6 +20,7 @@ void ServoSet(double power) {
 }
 
 void ServoReset() {
+    last_angle = 0;
     Wire.beginTransmission(I2C_SLAVE1_ADDRESS);
     Wire.write(0);
     Wire.endTransmission();

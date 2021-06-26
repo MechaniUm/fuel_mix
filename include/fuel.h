@@ -93,92 +93,98 @@ void ChangeBoost(double x) {
         boost = 0;
 }
 
-
+void WorkChangeAnimationSpeed() {
+    ChangeAnimationSpeed(0, 55 - map(fuel, 0, 100, 5, 40));
+    ChangeAnimationSpeed(1, 55 - map(air, 0, 100, 5, 40));
+    ChangeAnimationSpeed(2, 55 - map(n2o, 0, 100, 5, 40));
+}
 
 int prev_fuel = 0;
 void EncoderReadFuel() {
     int f = encoders[0].read() / encoder_step_width;
-    if (prev_fuel < f) {
-        if (fuel > 0) {
-            ChangeFuel(-1);
-            ChangeAnimationSpeed(0, 55 - map(fuel, 0, 100, 5, 40));
-            ChangeAnimationSpeed(1, 55 - map(air, 0, 100, 5, 40));
-            ChangeAnimationSpeed(2, 55 - map(n2o, 0, 100, 5, 40));
+    if (prev_fuel != f) {
+        afk_time = millis();
+        if (prev_fuel < f) {
+            if (fuel > 0) {
+                ChangeFuel(-1);
+                WorkChangeAnimationSpeed();
+            }
+        } else if (prev_fuel > f) {
+            if (fuel < 100) {
+                ChangeFuel(1);
+                WorkChangeAnimationSpeed();
+            }
         }
-    } else if (prev_fuel > f) {
-        if (fuel < 100) {
-            ChangeFuel(1);
-            ChangeAnimationSpeed(0, 55 - map(fuel, 0, 100, 5, 40));
-            ChangeAnimationSpeed(1, 55 - map(air, 0, 100, 5, 40));
-            ChangeAnimationSpeed(2, 55 - map(n2o, 0, 100, 5, 40));
-        }
+        prev_fuel = f;
     }
-    prev_fuel = f;
 }
 
 int prev_air = 0;
 void EncoderReadAir() {
     int f = encoders[1].read() / encoder_step_width;
-    if (prev_air < f) {
-        if (air > 0) {
-            ChangeAir(-1);
-            ChangeAnimationSpeed(0, 55 - map(fuel, 0, 100, 5, 40));
-            ChangeAnimationSpeed(1, 55 - map(air, 0, 100, 5, 40));
-            ChangeAnimationSpeed(2, 55 - map(n2o, 0, 100, 5, 40));
+    if (prev_air != f) {
+        afk_time = millis();
+        if (prev_air < f) {
+            if (air > 0) {
+                ChangeAir(-1);
+                WorkChangeAnimationSpeed();
+            }
+        } else if (prev_air > f) {
+            if (air < 100) {
+                ChangeAir(1);
+                WorkChangeAnimationSpeed();
+            }
         }
-    } else if (prev_air > f) {
-        if (air < 100) {
-            ChangeAir(1);
-            ChangeAnimationSpeed(0, 55 - map(fuel, 0, 100, 5, 40));
-            ChangeAnimationSpeed(1, 55 - map(air, 0, 100, 5, 40));
-            ChangeAnimationSpeed(2, 55 - map(n2o, 0, 100, 5, 40));
-        }
+        prev_air = f;
     }
-    prev_air = f;
 }
 
 
 int prev_N2O = 0;
 void EncoderReadN2O() {
     int f = encoders[2].read() / encoder_step_width;
-    if (prev_N2O < f) {
-        if (n2o > 0) {
-            ChangeN2O(-1);
-            ChangeAnimationSpeed(0, 55 - map(fuel, 0, 100, 5, 40));
-            ChangeAnimationSpeed(1, 55 - map(air, 0, 100, 5, 40));
-            ChangeAnimationSpeed(2, 55 - map(n2o, 0, 100, 5, 40));
+    if (prev_N2O != f) {
+        afk_time = millis();
+        if (prev_N2O < f) {
+            if (n2o > 0) {
+                ChangeN2O(-1);
+                WorkChangeAnimationSpeed();
+            }
+        } else if (prev_N2O > f) {
+            if (n2o < 100) {
+                ChangeN2O(1);
+                WorkChangeAnimationSpeed();
+            }
         }
-    } else if (prev_N2O > f) {
-        if (n2o < 100) {
-            ChangeN2O(1);
-            ChangeAnimationSpeed(0, 55 - map(fuel, 0, 100, 5, 40));
-            ChangeAnimationSpeed(1, 55 - map(air, 0, 100, 5, 40));
-            ChangeAnimationSpeed(2, 55 - map(n2o, 0, 100, 5, 40));
-        }
+        prev_N2O = f;
     }
-    prev_N2O = f;
 }
 
 int prev_boost = 0;
 void EncoderReadBoost() {
     int f = encoders[3].read() / encoder_step_width;
-    if (prev_boost < f) {
-        if (boost > 0) {
-            ChangeBoost(-1);
-            ChangeAnimationSpeed(3, 55 - map(boost, 0, 100, 5, 40));
-        }
+    if (prev_boost != f) {
+        afk_time = millis();
+        if (prev_boost < f) {
+            if (boost > 0) {
+                ChangeBoost(-1);
+                ChangeAnimationSpeed(3, 55 - map(boost, 0, 100, 5, 40));
+            }
 
-    } else if (prev_boost > f) {
-        if (boost < 100) {
-            ChangeBoost(1);
-            ChangeAnimationSpeed(3, 55 - map(boost, 0, 100, 5, 40));
+        } else if (prev_boost > f) {
+            if (boost < 100) {
+                ChangeBoost(1);
+                ChangeAnimationSpeed(3, 55 - map(boost, 0, 100, 5, 40));
+            }
         }
+        prev_boost = f;
     }
-    prev_boost = f;
 }
 
+bool power_lock = false;
 double prev_power = 0;
 void UpdatePower() {
+    if (power_lock) return;
     EncoderReadFuel();
     EncoderReadAir();
     EncoderReadN2O();
@@ -195,9 +201,6 @@ void UpdatePower() {
     if (!boost) pipe_enable[3] = false; else pipe_enable[3] = true;
     prev_power = power;
     power = Power(fuel, air, n2o, boost);
-    if (prev_power != power) {
-        afk_time = millis();
-    }
 }
 
 #endif

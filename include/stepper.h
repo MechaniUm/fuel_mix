@@ -24,18 +24,21 @@ void StepperSetSpeed(double power) {
 }
 
 void StepperResume() {
+    // aSerial.pln("resume");
     Wire.beginTransmission(I2C_SLAVE2_ADDRESS);
     Wire.write(2);
     Wire.endTransmission();
 }
 
 void StepperStop() {
+    // aSerial.pln("stop");
     Wire.beginTransmission(I2C_SLAVE2_ADDRESS);
     Wire.write(0);
     Wire.endTransmission();
 }
 
 void StepperStart() {
+    // aSerial.pln("start");
     Wire.beginTransmission(I2C_SLAVE2_ADDRESS);
     Wire.write(1);
     Wire.endTransmission();

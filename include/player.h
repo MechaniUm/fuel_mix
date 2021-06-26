@@ -5,25 +5,25 @@
 #include <DFPlayerMini_Fast.h>
 
 DFPlayerMini_Fast mp3;
-int volume = 15;
+int volume = 8;
 
 void PlayerSetup() {
     Serial2.begin(9600);
     mp3.begin(Serial2);
-    mp3.volume(15);
+    mp3.volume(5);
     delay(20);
 }
 
 void PlayerStop() {
     mp3.stop();
-    aSerial.pln("stop");
+    // aSerial.pln("stop");
     
 }
 
 int last_sound_idx = 0;
 void PlayerPlay(int i) {
     if (i != last_sound_idx) {
-        aSerial.p("play ").pln(i);
+        // aSerial.p("play ").pln(i);
         last_sound_idx = i;
         mp3.play(i);
     }

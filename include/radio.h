@@ -18,6 +18,7 @@ RM4 remote(kData0Pin, kData1Pin, kData2Pin, kData3Pin);
 
 void RadioButtonEvent1();
 void RadioButtonEvent2();
+void RadioButtonEvent3();
 
 void RadioInterrupt() {
     int button_code = remote.buttonCode();
@@ -26,6 +27,7 @@ void RadioInterrupt() {
     case 8:
         break;
     case 4:
+        RadioButtonEvent3();
         break;
     case 2:
         RadioButtonEvent2();
