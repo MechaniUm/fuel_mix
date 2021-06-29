@@ -129,6 +129,22 @@ void LightSetup() {
     SetupPipes();
 }
 
+void DisableLights() {
+    for (int i = 0; i < 4; i++) {
+        pipes_led[i].clear();
+        led_7segment[i].clear();
+        pipes_led[i].show();
+        led_7segment[i].show();
+    }
+
+    speedometer_led.clear();
+    speedometer_led.show();
+
+    headlight_led.clear();
+    headlight_led.show();
+
+    digitalWrite(headlight_pin, LOW);
+}
 
 void DisplayNumber(int n, int number) {
     uint32_t currentColor, blackColor;

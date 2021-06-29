@@ -48,6 +48,7 @@ void PlayerAlertSound() {
 
 void PlayerSetVolume(int vol) {
     mp3.volume(vol);
+    Serial.println(vol);
 }
 
 #endif

@@ -143,10 +143,13 @@ void WorkUpdate() {
 }
 
 void VolumeChange() {
-    LightWaitStage();
+    HardwareReset();
+    DisableLights();
+    power_lock = true;
+    aSerial.l(Level::vvv).pln(F("STAGE: VOLUME_CHANGE"));
     stage = VOLUME_CHANGE;
     setup_time = millis();
-    
+    prev_vol = encoders[0].read() / volume_step_width; // decrement or increment volume fix
 }
 
 void Setup() {
@@ -229,6 +232,7 @@ void loop() {
             EncoderReadVolume();
             DisplayNumber(0, volume);
         }
+        break;
     case WAIT:
         if (gold_stage % 2 == 0) {
             LightWaitAnimation();        // wait until RadioButtonEvent2()
@@ -272,7 +276,7 @@ void loop() {
                 }
                 speedometer_led.show();
                 DisplayNumber(0, gold_combo[2][0]);
-            DisplayNumber(1, gold_combo[2][1]);
+                DisplayNumber(1, gold_combo[2][1]);
                 DisplayNumber(2, gold_combo[2][2]);
                 DisplayNumber(3, gold_combo[2][3]);
                 ServoSet(Power(gold_combo[2][0], gold_combo[2][1], gold_combo[2][2], gold_combo[2][3]));
